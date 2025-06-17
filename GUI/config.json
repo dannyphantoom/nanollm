@@ -1,0 +1,13 @@
+{
+    "model_path": "checkpoints/best",
+    "tokenizer_path": "tokenizer/vocab.json",
+    "device": "cuda",
+    "max_new_tokens": 100,
+    "temperature": 0.8,
+    "top_p": 0.9,
+    "window": {
+        "width": 800,
+        "height": 600,
+        "title": "NanoLLM Chat"
+    }
+} 
