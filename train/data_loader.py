@@ -124,9 +124,9 @@ def get_dataloader(
     streaming: bool = False,
     config: Optional[str] = None,
     **kwargs
-) -> DataLoader:
+) -> tuple[DataLoader, Optional[DataLoader]]:
     """
-    Create a dataloader for training.
+    Create train and validation dataloaders.
     
     Args:
         tokenizer: Tokenizer instance
@@ -137,28 +137,79 @@ def get_dataloader(
         streaming: Whether to use streaming dataset
         config: Dataset configuration name (for HuggingFace datasets)
         **kwargs: Additional arguments passed to the dataset
+        
+    Returns:
+        A tuple of (train_dataloader, val_dataloader). val_dataloader may be None for streaming datasets.
     """
     if streaming:
-        dataset = StreamingTextDataset(
+        train_dataset = StreamingTextDataset(
             tokenizer=tokenizer,
             dataset_name=source,
+            split="train",
             seq_len=seq_len,
             config=config,
             **kwargs
         )
+        
+        # Create validation dataset if available
+        try:
+            val_dataset = StreamingTextDataset(
+                tokenizer=tokenizer,
+                dataset_name=source,
+                split="validation",
+                seq_len=seq_len,
+                config=config,
+                **kwargs
+            )
+        except Exception:
+            val_dataset = None
+            
         shuffle = False  # Streaming datasets can't be shuffled
     else:
-        dataset = TextDataset(
+        # For non-streaming, split the data 90/10
+        if isinstance(source, str) and Path(source).exists():
+            with open(source, 'r', encoding='utf-8') as f:
+                if source.endswith('.json'):
+                    texts = [item['text'] for item in json.load(f)]
+                else:
+                    texts = f.readlines()
+        else:
+            texts = source if isinstance(source, list) else [source]
+            
+        # Split into train/val
+        split_idx = int(len(texts) * 0.9)
+        train_texts = texts[:split_idx]
+        val_texts = texts[split_idx:]
+        
+        train_dataset = TextDataset(
             tokenizer=tokenizer,
-            texts=source,
+            texts=train_texts,
             seq_len=seq_len
         )
+        
+        val_dataset = TextDataset(
+            tokenizer=tokenizer,
+            texts=val_texts,
+            seq_len=seq_len
+        ) if val_texts else None
     
-    return DataLoader(
-        dataset,
+    train_dataloader = DataLoader(
+        train_dataset,
         batch_size=batch_size,
         shuffle=shuffle,
         num_workers=4 if not streaming else 0,
         pin_memory=True
     )
+    
+    val_dataloader = None
+    if val_dataset is not None:
+        val_dataloader = DataLoader(
+            val_dataset,
+            batch_size=batch_size,
+            shuffle=False,  # No need to shuffle validation
+            num_workers=4 if not streaming else 0,
+            pin_memory=True
+        )
+    
+    return train_dataloader, val_dataloader
 

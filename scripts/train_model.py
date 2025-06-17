@@ -216,20 +216,37 @@ def main():
         else:
             dataset_name = 'the_pile'
             dataset_config = None
+            
+        # Load a small portion of the dataset to build vocabulary
+        logger.info("Loading sample texts for vocabulary building...")
+        dataset = load_dataset(dataset_name, dataset_config, split='train', streaming=True)
+        sample_texts = []
+        for i, example in enumerate(dataset):
+            if i >= 1000:  # Use first 1000 examples to build vocab
+                break
+            sample_texts.append(example['text'])
+        
+        logger.info("Building tokenizer vocabulary...")
+        tokenizer.build_vocab(sample_texts)
         
         train_dataloader, val_dataloader = get_dataloader(
-            dataset_name=dataset_name,
-            dataset_config=dataset_config,
             tokenizer=tokenizer,
+            source=dataset_name,
             batch_size=config['batch_size'],
             seq_len=config['seq_len'],
-            streaming=True
+            streaming=True,
+            config=dataset_config
         )
     else:
         # Load local dataset
+        with open(args.dataset, 'r') as f:
+            texts = f.readlines()
+        logger.info("Building tokenizer vocabulary...")
+        tokenizer.build_vocab(texts[:1000])  # Use first 1000 lines for vocab
+        
         train_dataloader, val_dataloader = get_dataloader(
-            dataset_path=args.dataset,
             tokenizer=tokenizer,
+            source=args.dataset,
             batch_size=config['batch_size'],
             seq_len=config['seq_len'],
             streaming=False
@@ -242,7 +259,7 @@ def main():
         dim=config['dim'],
         n_heads=config['n_heads'],
         n_layers=config['n_layers'],
-        seq_len=config['seq_len'],
+        max_seq_len=config['seq_len'],
         dropout=config['dropout']
     )
     

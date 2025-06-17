@@ -102,7 +102,7 @@ class BPETokenizer:
         if not word:
             return []
         tokens = list(word)
-        tokens.append('/W')
+        tokens.append('</W>')
         for merge in self.merges:
             i = 0
             while i < len(tokens) - 1:
